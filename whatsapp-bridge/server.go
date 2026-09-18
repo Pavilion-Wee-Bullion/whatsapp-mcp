@@ -70,6 +70,9 @@ func (s *Server) registerRoutes() {
 	// flipping the global WHATSAPP_AUTO_DOWNLOAD_MEDIA flag.
 	s.mux.HandleFunc("POST /api/media/download", s.handleDownloadMedia)
 
+	// On-demand profile picture of a contact or group, persisted like media.
+	s.mux.HandleFunc("GET /api/avatar", s.handleAvatar)
+
 	// On-demand history-sync request. Asks WhatsApp for older messages in
 	// a chat so processHistorySyncEvent can backfill media-key fields.
 	// Recovers historical media for messages received before the
