@@ -186,14 +186,14 @@ func (b *Bridge) processHistorySyncEvent(evt *events.HistorySync) {
 			// so a backfilled row is indistinguishable from a live one.
 			res, err := b.db.Exec(`
 				INSERT INTO messages (id, chat_jid, sender_jid, sender_display, timestamp, type, content_text, content_normalized, is_from_me, scrubbed_text, scrub_flags_json,
-					media_key, media_direct_path, media_url, media_enc_sha256, media_sha256, media_file_length, media_key_timestamp, media_mime)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+					media_key, media_direct_path, media_url, media_enc_sha256, media_sha256, media_file_length, media_key_timestamp, media_mime, quoted_message_id)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 				ON CONFLICT(id) DO NOTHING
 			`, key.GetID(), chatJID, senderJID, senderDisplay, ts, msgType, content, normalized,
 				boolToInt(fromMe), scrubbed, ScrubFlagsJSON(flags),
 				mfields.MediaKey, mfields.MediaDirectPath, mfields.MediaURL,
 				mfields.MediaEncSHA, mfields.MediaSHA, mfields.MediaFileLength,
-				mfields.MediaKeyTimestamp, mfields.MediaMime)
+				mfields.MediaKeyTimestamp, mfields.MediaMime, quotedMessageID(wm.GetMessage()))
 			if err != nil {
 				log.Printf("history_sync: insert %s failed: %v", key.GetID(), err)
 				continue

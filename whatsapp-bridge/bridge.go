@@ -435,10 +435,11 @@ func (b *Bridge) onMessage(evt *events.Message) {
 	//     MYC-3284 exists to prevent.
 	_, err = b.db.Exec(`
 		INSERT INTO messages (id, chat_jid, sender_jid, sender_display, timestamp, type, content_text, content_normalized, is_from_me, scrubbed_text, scrub_flags_json,
-			media_key, media_direct_path, media_url, media_enc_sha256, media_sha256, media_file_length, media_key_timestamp, media_mime, raw_type)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			media_key, media_direct_path, media_url, media_enc_sha256, media_sha256, media_file_length, media_key_timestamp, media_mime, raw_type, quoted_message_id)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(id) DO UPDATE SET
 			type = excluded.type,
+			quoted_message_id = excluded.quoted_message_id,
 			content_text = excluded.content_text,
 			content_normalized = excluded.content_normalized,
 			sender_display = excluded.sender_display,
@@ -462,7 +463,7 @@ func (b *Bridge) onMessage(evt *events.Message) {
 		boolToInt(evt.Info.IsFromMe), scrubbed, ScrubFlagsJSON(flags),
 		mfields.MediaKey, mfields.MediaDirectPath, mfields.MediaURL,
 		mfields.MediaEncSHA, mfields.MediaSHA, mfields.MediaFileLength,
-		mfields.MediaKeyTimestamp, mfields.MediaMime, rawTypeNullable(msgType, content),
+		mfields.MediaKeyTimestamp, mfields.MediaMime, rawTypeNullable(msgType, content), quotedMessageID(evt.Message),
 		undecryptablePrefix+"%")
 	if err != nil {
 		log.Printf("onMessage: message insert failed: %v", err)
