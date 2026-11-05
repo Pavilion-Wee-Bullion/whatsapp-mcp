@@ -320,7 +320,9 @@ func (b *Bridge) RequestPairingCode(ctx context.Context, phone string) (string, 
 	if len(digits) < 7 {
 		return "", fmt.Errorf("phone_number must include country code, e.g. +15551234567")
 	}
-	code, err := b.client.PairPhone(ctx, digits, true, whatsmeow.PairClientChrome, "Chrome (whatsapp-mcp)")
+	// WhatsApp validates the display name as "Browser (OS)" with a common OS and answers 400 bad-request
+	// otherwise, before any code is issued; a name of our own here broke typed-code pairing.
+	code, err := b.client.PairPhone(ctx, digits, true, whatsmeow.PairClientChrome, "Chrome (Linux)")
 	if err != nil {
 		return "", err
 	}
