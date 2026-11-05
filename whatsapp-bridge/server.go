@@ -529,6 +529,8 @@ type messageRow struct {
 	IsFromMe      bool    `json:"is_from_me"`
 	Transcript    *string `json:"voice_note_transcript,omitempty"`
 	QuotedID      string  `json:"quoted_message_id,omitempty"`
+	// The Meta ad the chat was opened from, as ad_context.go stored it; absent on every other message.
+	AdContext json.RawMessage `json:"ad_context,omitempty"`
 }
 
 type messageListResponse struct {
@@ -604,7 +606,7 @@ func (s *Server) handleListMessages(w http.ResponseWriter, r *http.Request) {
 	query := fmt.Sprintf(`
 		SELECT id, chat_jid, COALESCE(sender_jid, ''), COALESCE(sender_display, ''), timestamp, type,
 		       COALESCE(scrubbed_text, COALESCE(content_text, '')),
-		       is_from_me, voice_note_transcript, COALESCE(quoted_message_id, '')
+		       is_from_me, voice_note_transcript, COALESCE(quoted_message_id, ''), COALESCE(ad_context_json, '')
 		FROM messages
 		WHERE %s
 		ORDER BY timestamp DESC, id DESC
@@ -622,9 +624,13 @@ func (s *Server) handleListMessages(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var m messageRow
 		var fromMe int
+		var ad string
 		if err := rows.Scan(&m.ID, &m.ChatJID, &m.SenderJID, &m.SenderDisplay, &m.Timestamp, &m.Type,
-			&m.ContentText, &fromMe, &m.Transcript, &m.QuotedID); err != nil {
+			&m.ContentText, &fromMe, &m.Transcript, &m.QuotedID, &ad); err != nil {
 			continue
+		}
+		if ad != "" {
+			m.AdContext = json.RawMessage(ad)
 		}
 		m.IsFromMe = fromMe == 1
 		out.Messages = append(out.Messages, m)
