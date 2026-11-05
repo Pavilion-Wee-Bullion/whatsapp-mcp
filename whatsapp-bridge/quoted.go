@@ -18,7 +18,12 @@ func quotedMessageID(raw *waE2E.Message) string {
 	if r := m.GetReactionMessage(); r != nil {
 		return r.GetKey().GetID()
 	}
+	return contextInfoOf(m).GetStanzaID()
+}
 
+// contextInfoOf returns the ContextInfo of an unwrapped message, whichever content type carries it, or nil. It holds
+// a reply's quote and, on a chat opened from a Meta ad, the ad itself (ad_context.go).
+func contextInfoOf(m *waE2E.Message) *waE2E.ContextInfo {
 	var ctx *waE2E.ContextInfo
 	switch {
 	case m.GetExtendedTextMessage() != nil:
@@ -52,5 +57,5 @@ func quotedMessageID(raw *waE2E.Message) string {
 	case m.GetTemplateMessage() != nil:
 		ctx = m.GetTemplateMessage().GetContextInfo()
 	}
-	return ctx.GetStanzaID()
+	return ctx
 }
