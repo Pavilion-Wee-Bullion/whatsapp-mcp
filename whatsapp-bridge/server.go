@@ -472,6 +472,9 @@ type chatRow struct {
 	LastMessageTime    int64  `json:"last_message_time"`
 	LastMessagePreview string `json:"last_message_preview"`
 	UnreadCount        int    `json:"unread_count"`
+	// The other party's number, digits only, when the bridge knows it (chat_phone.go); absent for groups and for
+	// an @lid chat WhatsApp has not paired with a number.
+	Phone string `json:"phone,omitempty"`
 }
 
 type chatListResponse struct {
@@ -489,33 +492,43 @@ func (s *Server) handleListChats(w http.ResponseWriter, r *http.Request) {
 	offset := parseIntDefault(q.Get("offset"), 0)
 	unreadOnly := q.Get("unread_only") == "true"
 
-	sqlStr := `SELECT jid, chat_type, COALESCE(name, ''), COALESCE(last_message_time, 0), COALESCE(last_message_preview, ''), unread_count
-	           FROM chats`
-	args := []any{}
-	if unreadOnly {
-		sqlStr += ` WHERE unread_count > 0`
-	}
-	sqlStr += ` ORDER BY last_message_time DESC LIMIT ? OFFSET ?`
-	args = append(args, limit, offset)
-
-	rows, err := s.db.QueryContext(r.Context(), sqlStr, args...)
+	chats, err := listChats(r.Context(), s.db, limit, offset, unreadOnly)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "query failed", Details: err.Error()})
 		return
 	}
-	defer rows.Close()
-
-	out := chatListResponse{Chats: []chatRow{}}
-	for rows.Next() {
-		var c chatRow
-		if err := rows.Scan(&c.JID, &c.ChatType, &c.Name, &c.LastMessageTime, &c.LastMessagePreview, &c.UnreadCount); err != nil {
-			continue
-		}
-		out.Chats = append(out.Chats, c)
-	}
-	out.Count = len(out.Chats)
+	out := chatListResponse{Chats: chats, Count: len(chats)}
 	out.BridgeState = s.currentBridgeState()
 	writeJSON(w, http.StatusOK, out)
+}
+
+// listChats reads one page of chats, most recent first, each with the other party's number where known.
+func listChats(ctx context.Context, db *sql.DB, limit, offset int, unreadOnly bool) ([]chatRow, error) {
+	sqlStr := `SELECT jid, chat_type, COALESCE(name, ''), COALESCE(last_message_time, 0), COALESCE(last_message_preview, ''), unread_count,` +
+		chatPhoneColumns + `
+	           FROM chats`
+	if unreadOnly {
+		sqlStr += ` WHERE unread_count > 0`
+	}
+	sqlStr += ` ORDER BY last_message_time DESC LIMIT ? OFFSET ?`
+
+	rows, err := db.QueryContext(ctx, sqlStr, limit, offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := []chatRow{}
+	for rows.Next() {
+		var c chatRow
+		var aliasJID, contactPhone string
+		if err := rows.Scan(&c.JID, &c.ChatType, &c.Name, &c.LastMessageTime, &c.LastMessagePreview, &c.UnreadCount, &aliasJID, &contactPhone); err != nil {
+			continue
+		}
+		c.Phone = chatPhone(c.JID, c.ChatType, aliasJID, contactPhone)
+		out = append(out, c)
+	}
+	return out, rows.Err()
 }
 
 type messageRow struct {
