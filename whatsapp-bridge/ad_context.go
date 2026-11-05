@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/base64"
 	"encoding/json"
 
 	"go.mau.fi/whatsmeow/proto/waE2E"
@@ -29,6 +30,9 @@ type adContext struct {
 	AutomatedGreetingMessageShown *bool  `json:"automated_greeting_message_shown,omitempty"`
 	ShowAdAttribution             *bool  `json:"show_ad_attribution,omitempty"`
 	ThumbnailBytes                int    `json:"thumbnail_bytes,omitempty"`
+	// The card's image travels inside the message; Meta's image URLs above carry an expiry (oe=), so this copy is
+	// the one that still shows the ad later. Skipped past maxAdThumbnailBytes so one odd ad cannot bloat a row.
+	ThumbnailBase64 string `json:"thumbnail_base64,omitempty"`
 
 	ConversionSource                   string `json:"conversion_source,omitempty"`
 	ConversionDataBytes                int    `json:"conversion_data_bytes,omitempty"`
@@ -39,6 +43,9 @@ type adContext struct {
 	CtwaSignals                        string `json:"ctwa_signals,omitempty"`
 	CtwaPayloadBytes                   int    `json:"ctwa_payload_bytes,omitempty"`
 }
+
+// maxAdThumbnailBytes bounds the inline thumbnail kept with an ad; a real one is about 2 KB.
+const maxAdThumbnailBytes = 64 * 1024
 
 // adContextJSON returns the ad a message carries as compact JSON for messages.ad_context_json, or "" when it carries
 // none (a plain reply's ContextInfo has a quote but no ad, and stays "").
@@ -84,6 +91,9 @@ func adContextJSON(raw *waE2E.Message) string {
 		a.AutomatedGreetingMessageShown = ad.AutomatedGreetingMessageShown
 		a.ShowAdAttribution = ad.ShowAdAttribution
 		a.ThumbnailBytes = len(ad.GetThumbnail())
+		if n := len(ad.GetThumbnail()); n > 0 && n <= maxAdThumbnailBytes {
+			a.ThumbnailBase64 = base64.StdEncoding.EncodeToString(ad.GetThumbnail())
+		}
 	}
 	if a == (adContext{}) {
 		return ""

@@ -41,6 +41,9 @@ func TestAdContextFromAClickToWhatsAppMessage(t *testing.T) {
 	if a.ConversionSource != "FB_Ads" || a.EntryPointConversionApp != "facebook" {
 		t.Errorf("conversion fields lost: %+v", a)
 	}
+	if a.ThumbnailBase64 != "AQID" {
+		t.Errorf("thumbnail not kept inline: %q", a.ThumbnailBase64)
+	}
 	if a.ThumbnailBytes != 3 || a.AutomatedGreetingMessageShown == nil || !*a.AutomatedGreetingMessageShown {
 		t.Errorf("thumbnail count or greeting flag lost: %+v", a)
 	}
@@ -106,5 +109,18 @@ func TestMigration008AddsTheAdColumnToAnExistingStore(t *testing.T) {
 	}
 	if _, err := db.Exec(`INSERT INTO messages (id, chat_jid, timestamp, type, content_text, is_from_me, ad_context_json) VALUES ('NEW-1', 'x@s.whatsapp.net', 1787000001, 'text', 'hi', 0, ?)`, `{"title":"Gold bar"}`); err != nil {
 		t.Fatalf("insert with an ad: %v", err)
+	}
+}
+
+func TestAnOversizedAdThumbnailIsCountedNotKept(t *testing.T) {
+	m := &waE2E.Message{ExtendedTextMessage: &waE2E.ExtendedTextMessage{ContextInfo: &waE2E.ContextInfo{
+		ExternalAdReply: &waE2E.ContextInfo_ExternalAdReplyInfo{Title: proto.String("x"), Thumbnail: make([]byte, maxAdThumbnailBytes+1)},
+	}}}
+	var a adContext
+	if err := json.Unmarshal([]byte(adContextJSON(m)), &a); err != nil {
+		t.Fatal(err)
+	}
+	if a.ThumbnailBase64 != "" || a.ThumbnailBytes != maxAdThumbnailBytes+1 {
+		t.Errorf("got base64 len %d, bytes %d", len(a.ThumbnailBase64), a.ThumbnailBytes)
 	}
 }
