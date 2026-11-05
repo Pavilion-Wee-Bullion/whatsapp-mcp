@@ -37,12 +37,18 @@ func TestListChatsCarriesTheNumberBehindAnLIDChat(t *testing.T) {
 		('85053405147300@lid', 'direct', 'Aaisyah', 300, 0, 1, 1),
 		('62959992746093@lid', 'direct', 'Ngsang', 200, 0, 1, 1),
 		('60111111111@s.whatsapp.net', 'direct', 'Phone', 100, 0, 1, 1),
-		('11111111111111@lid', 'direct', 'Unknown', 50, 0, 1, 1)`)
+		('11111111111111@lid', 'direct', 'Unknown', 50, 0, 1, 1),
+		('22222222222222@lid', 'direct', 'From WhatsApp Web', 40, 0, 1, 1),
+		('33333333333333@lid', 'direct', 'Contact on a device', 30, 0, 1, 1),
+		('2222222222222@lid', 'direct', 'Shorter LID', 20, 0, 1, 1)`)
 	mustExec(`INSERT INTO jid_aliases (jid_a, jid_b, discovered_at, source) VALUES
 		('85053405147300@lid', '60186649901@s.whatsapp.net', 10, 'message_sender'),
-		('60186649901@s.whatsapp.net', '85053405147300@lid', 10, 'message_sender')`)
+		('60186649901@s.whatsapp.net', '85053405147300@lid', 10, 'message_sender'),
+		('22222222222222:3@lid', '60122222222:3@s.whatsapp.net', 10, 'message_sender'),
+		('60122222222:3@s.whatsapp.net', '22222222222222:3@lid', 10, 'message_sender')`)
 	mustExec(`INSERT INTO contacts (jid, phone, push_name, is_business, created_at, updated_at) VALUES
-		('62959992746093@lid', '60197639012', 'Ngsang', 0, 1, 1)`)
+		('62959992746093@lid', '60197639012', 'Ngsang', 0, 1, 1),
+		('33333333333333:5@lid', '60133333333', 'Device', 0, 1, 1)`)
 
 	chats, err := listChats(context.Background(), db, 20, 0, false)
 	if err != nil {
@@ -57,13 +63,16 @@ func TestListChatsCarriesTheNumberBehindAnLIDChat(t *testing.T) {
 		"62959992746093@lid":         "60197639012",
 		"60111111111@s.whatsapp.net": "60111111111",
 		"11111111111111@lid":         "",
+		"22222222222222@lid":         "60122222222", // alias recorded from a linked device
+		"33333333333333@lid":         "60133333333", // contact row keyed by a linked device
+		"2222222222222@lid":          "",            // a prefix of another LID is not that LID
 	}
 	for jid, phone := range want {
 		if got[jid] != phone {
 			t.Errorf("%s: phone %q, want %q", jid, got[jid], phone)
 		}
 	}
-	if len(chats) != 4 || chats[0].JID != "85053405147300@lid" {
+	if len(chats) != 7 || chats[0].JID != "85053405147300@lid" {
 		t.Errorf("order or count changed: %+v", chats)
 	}
 }
